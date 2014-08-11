@@ -11,8 +11,11 @@ using System.Xml;
 
 using AlchemyAPI;
 
+using ForceDirectedGraph;
+
 using Clifton.ExtensionMethods;
 using Clifton.MycroParser;
+using Clifton.Tools.Strings.Extensions;
 
 namespace NlpVisualizer
 {
@@ -33,6 +36,7 @@ namespace NlpVisualizer
 	{
 		public string Keyword { get; set; }
 		public int Index { get; set; }
+		public double Relevance { get; set; }
 	}
 
 	public class Program
@@ -46,6 +50,8 @@ namespace NlpVisualizer
 		protected RichTextBox rtbSentences;
 		protected Button btnPrevSentence;
 		protected Button btnNextSentence;
+		protected RadioButton rbNeighboringSentenceKeywords;
+		protected RadioButton rbKeywordDirectedGraph;
 		protected Surface surface;
 		
 		protected AlchemyWrapper alchemy;
@@ -58,9 +64,20 @@ namespace NlpVisualizer
 		protected bool textboxEventsEnabled;
 		protected string keyword;
 
+		public Dictionary<string, double> keywordRelevanceMap;
+		public double minRelevance;
+		public double maxRelevance;
+		public bool directedGraph;
+		public Diagram mDiagram;
+
+		public static Program app;
+
 		public Program()
 		{
+			app = this;
 			displayedSentenceIndices = new List<int>();
+			keywordRelevanceMap = new Dictionary<string, double>();
+			mDiagram = new Diagram();
 		}
 
 		public void Initialize()
@@ -80,9 +97,49 @@ namespace NlpVisualizer
 			btnPrevSentence = (Button)mp.ObjectCollection["btnPrevSentence"];
 			btnNextSentence = (Button)mp.ObjectCollection["btnNextSentence"];
 			surface = (Surface)mp.ObjectCollection["surface"];
+
+			rbNeighboringSentenceKeywords = (RadioButton)mp.ObjectCollection["rbNeighboringSentenceKeywords"];
+			rbKeywordDirectedGraph = (RadioButton)mp.ObjectCollection["rbKeywordDirectedGraph"];
 				
 			InitializeNlp();
-			Application.Run(form);
+
+			try
+			{
+				Application.Run(form);
+			}
+			catch (Exception ex)
+			{
+				System.Diagnostics.Debug.WriteLine(ex.Message);
+			}
+		}
+
+		public void ShowKeywordSelection(string keyword)
+		{
+			textboxEventsEnabled = false;
+			ShowSentences(keyword);
+			textboxEventsEnabled = true;
+			rtbSentences.SelectionStart = 0;
+			surface.NewKeyword(keyword);
+			UpdateKeywordVisualization();
+		}
+
+		public void SelectKeyword(string keyword)
+		{
+			int idx = 0;
+
+			foreach(DataGridViewRow row in dgvKeywords.Rows)
+			{
+				row.Selected = row.Cells[0].Value.ToString() == keyword;
+
+				if (row.Selected)
+				{
+					break;
+				}
+
+				++idx;
+			}
+
+			dgvKeywords.FirstDisplayedScrollingRowIndex = idx;
 		}
 
 		protected async void InitializeNlp()
@@ -110,10 +167,29 @@ namespace NlpVisualizer
 			pageSentences = ParseOutSentences(pageText);
 			sbStatus.Text = "Acquiring keywords from AlchemyAPI...";
 			dsKeywords = GetKeywords(url, pageText);
+			sbStatus.Text = "Ready";
 			dvKeywords = new DataView(dsKeywords.Tables["keyword"]);
+			CreateKeywordRelevanceMap();		// Must be done before assigning the data source.
 			dgvKeywords.DataSource = dvKeywords;
 			lblAlchemyKeywords.Text = String.Format("Keywords: {0}", dvKeywords.Count);
 			btnProcess.Enabled = true;
+		}
+
+		protected void CreateKeywordRelevanceMap()
+		{
+			minRelevance = 1;
+			maxRelevance = 0;
+
+			keywordRelevanceMap.Clear();
+
+			dvKeywords.ForEach(row =>
+				{
+					double relevance = Convert.ToDouble(row[1].ToString());
+					keywordRelevanceMap[row[0].ToString()] = relevance;
+
+					(relevance < minRelevance).Then(() => minRelevance = relevance);
+					(relevance > maxRelevance).Then(() => maxRelevance = relevance);
+				});
 		}
 
 		protected void OnKeywordSelection(object sender, EventArgs args)
@@ -125,16 +201,7 @@ namespace NlpVisualizer
 				// We only allow one row to be selected.
 				DataGridViewRow row = rows[0];
 				keyword = row.Cells[0].Value.ToString();
-				textboxEventsEnabled = false;
-				ShowSentences(keyword);
-				textboxEventsEnabled = true;
-				rtbSentences.SelectionStart = 0;
-				surface.NewKeyword(keyword);
-				List<SentenceInfo> prevKeywords = GetPreviousSentencesKeywords();
-				List<SentenceInfo> nextKeywords = GetNextSentencesKeywords();
-				surface.PreviousKeywords(prevKeywords);
-				surface.NextKeywords(nextKeywords);
-				surface.Invalidate(true);
+				ShowKeywordSelection(keyword);
 			}
 		}
 
@@ -162,10 +229,23 @@ namespace NlpVisualizer
 			ShowSentence(currentSentenceIdx);
 		}
 
+		protected void OnSelectSentence(object sender, EventArgs args)
+		{
+			ShowSentence(currentSentenceIdx);
+		}
+
+		protected void GraphModeChanged(object sender, EventArgs args)
+		{
+			directedGraph = rbKeywordDirectedGraph.Checked;
+			UpdateKeywordVisualization();
+			surface.Invalidate(true);
+		}
+
 		protected void ShowSentence(int idx)
 		{
 			textboxEventsEnabled = false;
-			ShowSentenceWithKeywords(pageSentences[idx], keyword);
+			string sentence = pageSentences[idx];
+			ShowSentenceWithKeywords(sentence, keyword);
 			btnPrevSentence.Enabled = idx > 0;
 			btnNextSentence.Enabled = idx < pageSentences.Count - 1;
 
@@ -175,6 +255,18 @@ namespace NlpVisualizer
 
 			textboxEventsEnabled = true;
 			rtbSentences.SelectionStart = 0;
+
+			if (sentence.ToLower().Contains(keyword))
+			{
+				surface.NewKeyword(keyword);
+			}
+			else
+			{
+				// The currently selected keyword is not contained in this sentence.
+				surface.NewKeyword("[ ]");
+			}
+
+			UpdateKeywordVisualization();
 		}
 
 		protected int FindSentence(int charIdx)
@@ -253,6 +345,21 @@ namespace NlpVisualizer
 			return ret;
 		}
 
+		public List<SentenceInfo> GetSentencesKeywords()
+		{
+			List<SentenceInfo> ret = new List<SentenceInfo>();
+
+			displayedSentenceIndices.ForEach(dsi =>
+			{
+				if (dsi > 0)
+				{
+					ret.AddRange(GetKeywordsInSentence(dsi));
+				}
+			});
+
+			return ret;
+		}
+
 		protected List<SentenceInfo> GetNextSentencesKeywords()
 		{
 			List<SentenceInfo> ret = new List<SentenceInfo>();
@@ -280,7 +387,7 @@ namespace NlpVisualizer
 
 					if (sentence.Contains(row[0].ToString()))
 					{
-						ret.Add(new SentenceInfo() { Keyword = keyword, Index = idx });
+						ret.Add(new SentenceInfo() { Keyword = keyword, Index = idx, Relevance = keywordRelevanceMap[keyword] });
 					}
 				});
 
@@ -398,6 +505,107 @@ namespace NlpVisualizer
 			List<string> sentences = page.Split('.').Select(s => s.Trim()).Where(s => !String.IsNullOrEmpty(s) && (s != ".")).Select(s => Regex.Replace(s, " +"," ") + ".").ToList();
 
 			return sentences;
+		}
+
+		protected void UpdateKeywordVisualization()
+		{
+			List<SentenceInfo> prevKeywords = GetPreviousSentencesKeywords();
+			List<SentenceInfo> nextKeywords = GetNextSentencesKeywords();
+			surface.PreviousKeywords(prevKeywords);
+			surface.NextKeywords(nextKeywords);
+
+			if (directedGraph)
+			{
+				UpdateDirectedGraph();
+			}
+	
+			surface.Invalidate(true);
+		}
+
+		protected List<string> parsedKeywords = new List<string>();
+
+		protected void UpdateDirectedGraph()
+		{
+			mDiagram.Clear();
+			parsedKeywords.Clear();
+
+			string ctrSentence =  FirstThreeWords(pageSentences[displayedSentenceIndices[0]]);
+			Node node = new TextNode(surface, ctrSentence);
+			mDiagram.AddNode(node);
+
+			// Get the keywords of all sentences for the current sentence or sentences containing the selected keyword.
+			List<SentenceInfo> keywords = GetSentencesKeywords();
+			keywords = keywords.RemoveDuplicates((si1, si2) => si1.Keyword == si2.Keyword).ToList();
+			parsedKeywords.AddRange(keywords.Select(si => si.Keyword));
+			AddKeywordsToGraphNode(node, keywords, 0);
+		}
+
+		protected void AddKeywordsToGraphNode(Node node, List<SentenceInfo> keywords, int depth)
+		{
+			if (depth < 3)
+			{
+				int idx = 0;
+
+				keywords.ForEach(si =>
+				{
+					++idx;
+
+					// Limit # of keywords we display.
+					if (idx <= 5)
+					{
+						Node child = new TextNode(surface, si.Keyword);
+						node.AddChild(child);
+
+						// Get all sentences indices containing this keyword:
+						List<int> containingSentences = new List<int>();
+
+						pageSentences.ForEachWithIndex((sentence, sidx) =>
+						{
+							string s = sentence.ToLower();
+
+							if (s.IndexOf(si.Keyword) >= 0)
+							{
+								containingSentences.Add(sidx);
+							}
+						});
+
+						// Now get the related keywords for each of those sentences.  
+						List<SentenceInfo> relatedKeywords = new List<SentenceInfo>();
+
+						containingSentences.ForEach(cs =>
+							{
+								List<SentenceInfo> si3 = GetKeywordsInSentence(cs);
+
+								si3.ForEach(si4 =>
+									{
+										// This will also remove duplicates.
+										if (!parsedKeywords.Contains(si4.Keyword))
+										{
+											relatedKeywords.Add(si4);
+											// Avoid further duplicates.
+											parsedKeywords.Add(si4.Keyword);
+										}
+									});
+							});
+
+						if (relatedKeywords.Count > 0)
+						{
+							// Remove related keywords in sentences we've already processed.
+							AddKeywordsToGraphNode(child, relatedKeywords, depth + 1);
+						}
+					}
+				});
+			}
+
+			mDiagram.Arrange();
+		}
+
+		protected string FirstThreeWords(string s)
+		{
+			string ret = s.LeftOf(" ") + " " + s.RightOf(" ").LeftOf(" ") + " " + s.RightOf(" ").RightOf(" ").LeftOf(" ");
+			ret = ret + "...";
+
+			return ret;
 		}
 
 		/// <summary>

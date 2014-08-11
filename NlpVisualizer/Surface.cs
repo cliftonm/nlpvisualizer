@@ -9,6 +9,10 @@ using System.Text;
 using System.Threading.Tasks;
 using System.Windows.Forms;
 
+using ForceDirectedGraph;
+
+using Clifton.ExtensionMethods;
+
 namespace NlpVisualizer
 {
 	public class VisualizerControl : Panel
@@ -21,8 +25,10 @@ namespace NlpVisualizer
 
 	public class Surface : UserControl
 	{
+		public static double FONT_WEIGHT_MULTIPLIER = 16.0;
+
 		protected Brush blackBrush;
-		protected Brush whiteBrush;
+		public Brush whiteBrush;
 		protected Pen pen;
 		protected Pen whitePen;
 		protected Font font;
@@ -31,11 +37,13 @@ namespace NlpVisualizer
 		protected Point mouseStart;
 		protected Point mousePosition;
 		protected bool dragSurface;
+		protected double scaleFactor = 1.0;
 
 		// Model for the surface
 		protected string keyword;
 		List<SentenceInfo> previousKeywords;
 		List<SentenceInfo> nextKeywords;
+		Dictionary<Rectangle, string> keywordLocationMap;
 
 		public Surface()
 		{
@@ -56,6 +64,7 @@ namespace NlpVisualizer
 			penColors.Add(new Pen(Color.Purple));
 			penColors.Add(new Pen(Color.Salmon));
 
+			keywordLocationMap = new Dictionary<Rectangle, string>();
 		}
 
 		public void NewKeyword(string keyword)
@@ -76,17 +85,32 @@ namespace NlpVisualizer
 
 		protected void OnVisualizerPaint(object sender, PaintEventArgs e)
 		{
+			e.Graphics.FillRectangle(blackBrush, new Rectangle(new Point(0, 0), Size));
+			e.Graphics.SmoothingMode = SmoothingMode.AntiAlias;
+			e.Graphics.PixelOffsetMode = PixelOffsetMode.HighQuality;
+			e.Graphics.SmoothingMode = System.Drawing.Drawing2D.SmoothingMode.HighQuality;
+
+			if (Program.app.directedGraph)
+			{
+				DrawForceDirectedGraph(e.Graphics);
+			}
+			else
+			{
+				DrawNeighboringSentenceKeywords(e.Graphics);
+			}
+		}
+
+		protected void DrawNeighboringSentenceKeywords(Graphics gr)
+		{
 			try
 			{
-				Control ctrl = (Control)sender;
+				// Get location of keyword in the center of the
+				Point ctr = new Point(Size.Width / 2, Size.Height / 2);
 
-				e.Graphics.FillRectangle(blackBrush, new Rectangle(Location, Size));
-				e.Graphics.SmoothingMode = SmoothingMode.AntiAlias;
-				e.Graphics.PixelOffsetMode = PixelOffsetMode.HighQuality;
-
-				Point ctr = DrawKeyword(e.Graphics, keyword);
-				DrawPreviousKeywords(e.Graphics, ctr);
-				DrawNextKeywords(e.Graphics, ctr);
+				keywordLocationMap.Clear();
+				DrawPreviousKeywords(gr, ctr);
+				DrawNextKeywords(gr, ctr);
+				DrawKeyword(gr, keyword);		// Last, so that text appears above lines.
 			}
 			catch (Exception ex)
 			{
@@ -94,14 +118,30 @@ namespace NlpVisualizer
 			}
 		}
 
-		protected Point DrawKeyword(Graphics gr, string keyword)
+		protected void DrawForceDirectedGraph(Graphics gr)
 		{
-			Point center = new Point(Location.X + Size.Width / 2, Location.Y + Size.Height / 2);
+			Program.app.mDiagram.Draw(gr, new Rectangle(20, 20, Size.Width-40, Size.Height-40), scaleFactor);
+		}
+
+		protected void DrawKeyword(Graphics gr, string keyword)
+		{
+			Point center = new Point(Size.Width / 2, Size.Height / 2);
+			double relevance;
+			Font font;
+
+			if (Program.app.keywordRelevanceMap.TryGetValue(keyword, out relevance))
+			{
+				font = new Font(FontFamily.GenericSansSerif, (float)(8.0 + (Program.app.keywordRelevanceMap[keyword] - Program.app.minRelevance) * FONT_WEIGHT_MULTIPLIER));
+			}
+			else
+			{
+				font = new Font(FontFamily.GenericSansSerif, 8);
+			}
+
 			SizeF strSize = gr.MeasureString(keyword, font);
 			Point textCenter = Point.Subtract(center, new Size((int)strSize.Width / 2, (int)strSize.Height / 2));
 			gr.DrawString(keyword, font, whiteBrush, SurfaceOffsetAdjust(textCenter));
-
-			return center;
+			font.Dispose();
 		}
 
 		protected void DrawPreviousKeywords(Graphics gr, Point source)
@@ -120,6 +160,7 @@ namespace NlpVisualizer
 
 			if (n > 0)
 			{
+				// Vertical starting location.
 				int starty = source.Y - 25 * (n / 2);
 				
 				if ((n & 1) == 0)
@@ -130,11 +171,15 @@ namespace NlpVisualizer
 				keywords.ForEach(si =>
 					{
 						Point edge = new Point(source.X + hOffset, starty);
+						Font font = new Font(FontFamily.GenericSansSerif, (float)(8.0 + (si.Relevance - Program.app.minRelevance) * FONT_WEIGHT_MULTIPLIER));
 						SizeF strSize = gr.MeasureString(si.Keyword, font);
 						Point textCenter = Point.Subtract(edge, new Size((int)strSize.Width / 2, (int)strSize.Height / 2));
-						gr.DrawString(si.Keyword, font, whiteBrush, SurfaceOffsetAdjust(textCenter));
+						Rectangle r = new Rectangle(textCenter, new Size((int)strSize.Width, (int)strSize.Height));
+						keywordLocationMap[r] = si.Keyword;
 						gr.DrawLine(penColors[2], SurfaceOffsetAdjust(edge), SurfaceOffsetAdjust(source));
+						gr.DrawString(si.Keyword, font, whiteBrush, SurfaceOffsetAdjust(textCenter));
 						starty += 50;
+						font.Dispose();
 					});
 			}
 		}
@@ -149,16 +194,47 @@ namespace NlpVisualizer
 			}
 		}
 
+		protected void MouseUpEvent(object sender, MouseEventArgs args)
+		{
+			dragSurface = false;
+		}
+
 		protected void MouseMoveEvent(object sender, MouseEventArgs args)
 		{
 			mousePosition = args.Location;
 
 			if (dragSurface)
 			{
-				base.OnMouseMove(args);
 				surfaceOffset = Point.Subtract(args.Location, new Size(mouseStart));
 				Invalidate(true);
 			}
+		}
+
+		protected void MouseDoubleClickEvent(object sender, MouseEventArgs args)
+		{
+			Point p = NegativeSurfaceOffsetAdjust(args.Location);
+
+			foreach(KeyValuePair<Rectangle, string> kvp in keywordLocationMap)
+			{
+				if (kvp.Key.Contains(p))
+				{
+					Program.app.SelectKeyword(kvp.Value);
+					// Program.app.ShowKeywordSelection(kvp.Value);
+					break;
+				}
+			}
+		}
+
+		protected void MouseWheelEvent(object sender, MouseEventArgs args)
+		{
+			double spin = args.Delta / 120;			// Where does this constant come from?
+
+			scaleFactor += spin / 10;
+
+			(scaleFactor < 0.5).Then(() => scaleFactor = 0.5);
+			(scaleFactor > 10.0).Then(() => scaleFactor = 10.0);
+
+			Invalidate(true);
 		}
 
 		/// <summary>
@@ -170,6 +246,11 @@ namespace NlpVisualizer
 			p.Offset(surfaceOffset);
 
 			return p;
+		}
+
+		public Rectangle SurfaceOffsetAdjust(Rectangle r)
+		{
+			return new Rectangle(SurfaceOffsetAdjust(r.Location), r.Size);
 		}
 
 		/// <summary>

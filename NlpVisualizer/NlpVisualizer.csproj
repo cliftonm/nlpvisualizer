@@ -45,6 +45,9 @@
   </ItemGroup>
   <ItemGroup>
     <Compile Include="AlchemyWrapper.cs" />
+    <Compile Include="ForceDirectedGraph\Diagram.cs" />
+    <Compile Include="ForceDirectedGraph\Node.cs" />
+    <Compile Include="ForceDirectedGraph\Vector.cs" />
     <Compile Include="Program.cs" />
     <Compile Include="Properties\AssemblyInfo.cs" />
     <Compile Include="Surface.cs">
