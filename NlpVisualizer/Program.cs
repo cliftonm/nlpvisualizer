@@ -29,6 +29,12 @@ namespace NlpVisualizer
 		}
 	}
 
+	public class SentenceInfo
+	{
+		public string Keyword { get; set; }
+		public int Index { get; set; }
+	}
+
 	public class Program
 	{
 		protected Form form;
@@ -40,6 +46,7 @@ namespace NlpVisualizer
 		protected RichTextBox rtbSentences;
 		protected Button btnPrevSentence;
 		protected Button btnNextSentence;
+		protected Surface surface;
 		
 		protected AlchemyWrapper alchemy;
 		protected DataSet dsKeywords;
@@ -72,6 +79,7 @@ namespace NlpVisualizer
 			rtbSentences = (RichTextBox)mp.ObjectCollection["rtbSentences"];
 			btnPrevSentence = (Button)mp.ObjectCollection["btnPrevSentence"];
 			btnNextSentence = (Button)mp.ObjectCollection["btnNextSentence"];
+			surface = (Surface)mp.ObjectCollection["surface"];
 				
 			InitializeNlp();
 			Application.Run(form);
@@ -114,12 +122,19 @@ namespace NlpVisualizer
 
 			if (rows.Count > 0)
 			{
+				// We only allow one row to be selected.
 				DataGridViewRow row = rows[0];
 				keyword = row.Cells[0].Value.ToString();
 				textboxEventsEnabled = false;
 				ShowSentences(keyword);
 				textboxEventsEnabled = true;
 				rtbSentences.SelectionStart = 0;
+				surface.NewKeyword(keyword);
+				List<SentenceInfo> prevKeywords = GetPreviousSentencesKeywords();
+				List<SentenceInfo> nextKeywords = GetNextSentencesKeywords();
+				surface.PreviousKeywords(prevKeywords);
+				surface.NextKeywords(nextKeywords);
+				surface.Invalidate(true);
 			}
 		}
 
@@ -221,6 +236,55 @@ namespace NlpVisualizer
 					rtbSentences.AppendText("\n\n");
 				}
 			});
+		}
+
+		protected List<SentenceInfo> GetPreviousSentencesKeywords()
+		{
+			List<SentenceInfo> ret = new List<SentenceInfo>();
+
+			displayedSentenceIndices.ForEach(dsi =>
+				{
+					if (dsi > 0)
+					{
+						ret.AddRange(GetKeywordsInSentence(dsi - 1));
+					}
+				});
+
+			return ret;
+		}
+
+		protected List<SentenceInfo> GetNextSentencesKeywords()
+		{
+			List<SentenceInfo> ret = new List<SentenceInfo>();
+
+			displayedSentenceIndices.ForEach(dsi =>
+			{
+				if (dsi < pageSentences.Count - 1)
+				{
+					ret.AddRange(GetKeywordsInSentence(dsi + 1));
+				}
+			});
+
+			return ret;
+		}
+
+		protected List<SentenceInfo> GetKeywordsInSentence(int idx)
+		{
+			List<SentenceInfo> ret = new List<SentenceInfo>();
+			string sentence = pageSentences[idx].ToLower();
+
+			// TODO: Optimize this so it's a simple lookup after generating the keywords!
+			dvKeywords.ForEach(row =>
+				{
+					string keyword = row[0].ToString();
+
+					if (sentence.Contains(row[0].ToString()))
+					{
+						ret.Add(new SentenceInfo() { Keyword = keyword, Index = idx });
+					}
+				});
+
+			return ret;
 		}
 
 		protected void ShowSentenceWithKeywords(string sentence, string keyword)
