@@ -7,7 +7,7 @@
   <wf:Form def:Name="form" Text="NLP Visualizer" Size="1024, 768" StartPosition="CenterScreen">
     <wf:Controls>
       <wf:Label Text="URL:" Location="10, 12" Size="45, 15"/>
-      <wf:TextBox def:Name="tbUrl" Location="55, 10" Size="300, 20" Text="http://wn.rsarchive.org/Books/GA024/English/AP1985/GA024_c04.html"/>
+      <wf:TextBox def:Name="tbUrl" Location="55, 10" Size="300, 20" Text="http://en.wikipedia.org/wiki/Founding_Fathers_of_the_United_States"/>
       <wf:Button def:Name="btnProcess" Text="Process" Location="360, 7" Size="80, 25" Click="Process"/>
       
       <wf:Label def:Name="lblAlchemyKeywords" Text="Keywords:" Location="10, 40" Size="100, 15"/>
@@ -32,7 +32,7 @@
       <wf:Button def:Name="btnPrevSentence" Location="320, 260" Text="Prev. Sentence" Size="120, 25" Click="OnPreviousSentence"/>
       <wf:Button def:Name="btnNextSentence" Location="445, 260" Text="Next Sentence" Size="120, 25" Click="OnNextSentence"/>
 
-      <wf:RadioButton def:Name="rbNeighboringSentenceKeywords" Text="Neighboring Sentence Keywords" Location="320, 300" Size="200, 20" Checked="true" CheckedChanged="GraphModeChanged"/>
+      <wf:RadioButton def:Name="rbNeighboringSentenceKeywords" Text="Adjacent Sentence Keywords" Location="320, 300" Size="200, 20" Checked="true" CheckedChanged="GraphModeChanged"/>
       <wf:RadioButton def:Name="rbKeywordDirectedGraph" Text="Keyword Directed Graph" Location="550, 300" Size="150, 20" CheckedChanged="GraphModeChanged"/>
 
       <nlp:Surface def:Name="surface" Location="320, 320" Size="670, 375" Anchor="Left, Top, Bottom, Right">

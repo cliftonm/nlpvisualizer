@@ -15,7 +15,7 @@ namespace ForceDirectedGraph
 	/// </summary>
 	public abstract class Node
 	{
-		protected Surface surface;
+		public Surface surface;
 
 		Diagram mDiagram;			// the parent diagram
 		Point mLocation;			// node position, relative to the origin
@@ -222,12 +222,17 @@ namespace ForceDirectedGraph
 
 	public class TextNode : SpotNode
 	{
-		protected string text;
+		public Brush Brush { get; set; }
+
+		public string text;
 
 		public TextNode(Surface surface, string text) : base()
 		{
 			this.surface = surface;
 			this.text = text;
+
+			// default brush
+			Brush = surface.whiteBrush;
 		}
 
 		public override void DrawNode(Graphics gr, Rectangle bounds)
@@ -248,7 +253,7 @@ namespace ForceDirectedGraph
 
 			SizeF strSize = gr.MeasureString(text, font);
 			Point textCenter = Point.Subtract(bounds.Location, new Size((int)strSize.Width / 2 - 5, -10));
-			gr.DrawString(text, font, surface.whiteBrush, surface.SurfaceOffsetAdjust(textCenter));
+			gr.DrawString(text, font, Brush, surface.SurfaceOffsetAdjust(textCenter));
 			font.Dispose();
 		}
 	}

@@ -295,6 +295,15 @@ namespace ForceDirectedGraph
 				Size nodeSize = node.Size;
 				Rectangle nodeBounds = new Rectangle(center.X + destination.X - (nodeSize.Width / 2), center.Y + destination.Y - (nodeSize.Height / 2), nodeSize.Width, nodeSize.Height);
 				node.DrawNode(graphics, nodeBounds);
+
+				if (node.surface != null)
+				{
+					// Horrid entanglement and access to fields, rather than properties, etc.
+					// Yes, I know I need to fix this.  -- MTC
+					// (I wrote this code, not Bradley!)
+					// Retain the coordinate so we can double-click on the node!
+					node.surface.keywordLocationMap[nodeBounds] = ((TextNode)node).text;
+				}
 			}
 		}
 

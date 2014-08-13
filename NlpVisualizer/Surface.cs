@@ -29,6 +29,7 @@ namespace NlpVisualizer
 
 		protected Brush blackBrush;
 		public Brush whiteBrush;
+		public Brush greenBrush;
 		protected Pen pen;
 		protected Pen whitePen;
 		protected Font font;
@@ -37,18 +38,22 @@ namespace NlpVisualizer
 		protected Point mouseStart;
 		protected Point mousePosition;
 		protected bool dragSurface;
+		protected bool changeZoom;
 		protected double scaleFactor = 1.0;
 
 		// Model for the surface
 		protected string keyword;
-		List<SentenceInfo> previousKeywords;
-		List<SentenceInfo> nextKeywords;
-		Dictionary<Rectangle, string> keywordLocationMap;
+		protected List<SentenceInfo> previousKeywords;
+		protected List<SentenceInfo> nextKeywords;
+		
+		// Yes, I know this is terrible entanglement.
+		public Dictionary<Rectangle, string> keywordLocationMap;
 
 		public Surface()
 		{
 			blackBrush = new SolidBrush(Color.Black);
 			whiteBrush = new SolidBrush(Color.White);
+			greenBrush = new SolidBrush(Color.Green);
 			font = new Font(FontFamily.GenericSansSerif, 8);
 			pen = new Pen(Color.LightBlue);
 			whitePen = new Pen(Color.White);
@@ -120,7 +125,8 @@ namespace NlpVisualizer
 
 		protected void DrawForceDirectedGraph(Graphics gr)
 		{
-			Program.app.mDiagram.Draw(gr, new Rectangle(20, 20, Size.Width-40, Size.Height-40), scaleFactor);
+			keywordLocationMap.Clear();
+			Program.app.mDiagram.Draw(gr, new Rectangle(20, 20, Size.Width - 40, Size.Height - 40), scaleFactor);
 		}
 
 		protected void DrawKeyword(Graphics gr, string keyword)
@@ -186,7 +192,13 @@ namespace NlpVisualizer
 
 		protected void MouseDownEvent(object sender, MouseEventArgs args)
 		{
-			if (args.Button == MouseButtons.Right)
+			if (args.Button == MouseButtons.Left)
+			{
+				changeZoom = true;
+				mouseStart = args.Location;
+				mousePosition = args.Location;
+			}
+			else if (args.Button == MouseButtons.Right)
 			{
 				dragSurface = true;
 				mouseStart = NegativeSurfaceOffsetAdjust(args.Location);
@@ -196,16 +208,29 @@ namespace NlpVisualizer
 
 		protected void MouseUpEvent(object sender, MouseEventArgs args)
 		{
+			changeZoom = false;
 			dragSurface = false;
 		}
 
 		protected void MouseMoveEvent(object sender, MouseEventArgs args)
 		{
 			mousePosition = args.Location;
+			Point delta = Point.Subtract(args.Location, new Size(mouseStart));
 
 			if (dragSurface)
 			{
-				surfaceOffset = Point.Subtract(args.Location, new Size(mouseStart));
+				surfaceOffset = delta;
+				Invalidate(true);
+			}
+			else if (changeZoom)
+			{
+				scaleFactor += (delta.X + delta.Y) / 100.0;
+
+				(scaleFactor < 0.2).Then(() => scaleFactor = 0.2);
+				(scaleFactor > 10.0).Then(() => scaleFactor = 10.0);
+
+				mouseStart = args.Location;
+
 				Invalidate(true);
 			}
 		}
@@ -231,7 +256,7 @@ namespace NlpVisualizer
 
 			scaleFactor += spin / 10;
 
-			(scaleFactor < 0.5).Then(() => scaleFactor = 0.5);
+			(scaleFactor < 0.2).Then(() => scaleFactor = 0.2);
 			(scaleFactor > 10.0).Then(() => scaleFactor = 10.0);
 
 			Invalidate(true);

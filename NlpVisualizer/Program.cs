@@ -19,6 +19,9 @@ using Clifton.Tools.Strings.Extensions;
 
 namespace NlpVisualizer
 {
+	/// <summary>
+	/// An extension method that appends text with a specific color to a RichTextBox.
+	/// </summary>
 	public static class RichTextBoxExtensions
 	{
 		public static void AppendText(this RichTextBox box, string text, Color color)
@@ -32,6 +35,9 @@ namespace NlpVisualizer
 		}
 	}
 
+	/// <summary>
+	/// Internal structure for tracking a keyword, its containing index, and its relevance.
+	/// </summary>
 	public class SentenceInfo
 	{
 		public string Keyword { get; set; }
@@ -41,6 +47,9 @@ namespace NlpVisualizer
 
 	public class Program
 	{
+		const int FDG_DEPTH_LIMIT = 3;
+		const int FDG_NODE_KEYWORD_LIMIT = 5;
+
 		protected Form form;
 		protected TextBox tbUrl;
 		protected DataGridView dgvKeywords;
@@ -94,6 +103,9 @@ namespace NlpVisualizer
 			mDiagram = new Diagram();
 		}
 
+		/// <summary>
+		/// Set up the UI and initialize the NLP.
+		/// </summary>
 		public void Initialize()
 		{
 			MycroParser mp = new MycroParser();
@@ -127,10 +139,14 @@ namespace NlpVisualizer
 			}
 		}
 
+		/// <summary>
+		/// When a keyword is selected from the grid or the visualizator, we update RTB
+		/// to display the sentences containing the keyword and also the keyword relationship visualization.
+		/// </summary>
 		public void ShowKeywordSelection(string keyword)
 		{
 			textboxEventsEnabled = false;
-			ShowSentences(keyword.ToLower());
+			ShowSentences(keyword);
 			textboxEventsEnabled = true;
 			rtbSentences.SelectionStart = 0;
 			surface.NewKeyword(keyword);
@@ -171,25 +187,61 @@ namespace NlpVisualizer
 			sbStatus.Text = "Ready";
 		}
 
+		/// <summary>
+		/// Analyze the document, extracting the text the keywords, and create the keyword-sentence maps.
+		/// </summary>
 		protected async void Process(object sender, EventArgs args)
 		{
 			btnProcess.Enabled = false;
 			ClearAllGrids();
 			string url = tbUrl.Text;
 			sbStatus.Text = "Acquiring page content...";
-			pageText = await Task.Run(() => GetUrlText(url));
-			pageSentences = ParseOutSentences(pageText);
-			sbStatus.Text = "Acquiring keywords from AlchemyAPI...";
-			dsKeywords = GetKeywords(url, pageText);
-			sbStatus.Text = "Processing results...";
-			dvKeywords = new DataView(dsKeywords.Tables["keyword"]);
-			CreateSortedKeywordList(dvKeywords);
-			CreateSentenceKeywordMaps(dvKeywords);
-			CreateKeywordRelevanceMap(dvKeywords);		// Must be done before assigning the data source.
-			sbStatus.Text = "Ready";
-			dgvKeywords.DataSource = dvKeywords;
-			lblAlchemyKeywords.Text = String.Format("Keywords: {0}", dvKeywords.Count);
-			btnProcess.Enabled = true;
+			try
+			{
+				pageText = await Task.Run(() => GetUrlText(url));
+
+				pageSentences = ParseOutSentences(pageText);
+				sbStatus.Text = "Acquiring keywords from AlchemyAPI...";
+
+				dsKeywords = await Task.Run(() => GetKeywords(url, pageText));
+
+				sbStatus.Text = "Processing results...";
+				dvKeywords = new DataView(dsKeywords.Tables["keyword"]);
+				StripEndingPeriods();
+				CreateSortedKeywordList(dvKeywords);
+				CreateSentenceKeywordMaps(dvKeywords);
+				CreateKeywordRelevanceMap(dvKeywords);		// Must be done before assigning the data source.
+				sbStatus.Text = "Ready";
+				dgvKeywords.DataSource = dvKeywords;
+				lblAlchemyKeywords.Text = String.Format("Keywords: {0}", dvKeywords.Count);
+				btnProcess.Enabled = true;
+			}
+			catch (Exception ex)
+			{
+				MessageBox.Show(ex.Message, "Processing Error", MessageBoxButtons.OK);
+			}
+			finally
+			{
+				sbStatus.Text = "Ready";
+				btnProcess.Enabled = true;
+			}
+		}
+
+		/// <summary>
+		/// ALCHEMYAPI
+		/// For some reason, some of they keywords coming back from AlchemyAPI have an ending period which we need to strip off.
+		/// </summary>
+		protected void StripEndingPeriods()
+		{
+			dvKeywords.ForEach(row =>
+				{
+					string keyword = row[0].ToString();
+
+					if (keyword.EndsWith("."))
+					{
+						row[0] = keyword.Substring(0, keyword.Length - 1);
+					}
+				});
 		}
 
 		protected void CreateSortedKeywordList(DataView dvKeywords)
@@ -203,6 +255,11 @@ namespace NlpVisualizer
 				});
 		}
 
+		/// <summary>
+		/// Create the sentence-keyword map (list of keywords in each sentence.)
+		/// Create the keyword-sentence map (list of sentence indices for each keyword.)
+		/// </summary>
+		/// <param name="dvKeywords"></param>
 		protected void CreateSentenceKeywordMaps(DataView dvKeywords)
 		{
 			sentenceKeywordMap.Clear();
@@ -215,6 +272,7 @@ namespace NlpVisualizer
 					sentenceKeywordMap[idx] = keywordsInSentence;
 					string sl = s.ToLower();
 
+					// For each of the returned keywords in the view...
 					dvKeywords.ForEach(row =>
 						{
 							string keyword = row[0].ToString();
@@ -229,6 +287,7 @@ namespace NlpVisualizer
 
 								if (!keywordSentenceMap.TryGetValue(keyword, out sentences))
 								{
+									// No entry for this keyword yet, so create the sentence indices list.
 									sentences = new List<int>();
 									keywordSentenceMap[keyword] = sentences;
 								}
@@ -300,9 +359,12 @@ namespace NlpVisualizer
 
 		protected void GraphModeChanged(object sender, EventArgs args)
 		{
-			directedGraph = rbKeywordDirectedGraph.Checked;
-			UpdateKeywordVisualization();
-			surface.Invalidate(true);
+			if (directedGraph != rbKeywordDirectedGraph.Checked)
+			{
+				directedGraph = rbKeywordDirectedGraph.Checked;
+				UpdateKeywordVisualization();
+				surface.Invalidate(true);
+			}
 		}
 
 		protected void ShowSentence(int idx)
@@ -354,6 +416,9 @@ namespace NlpVisualizer
 			return sentenceIdx;
 		}
 
+		/// <summary>
+		/// Build the text, checking for keyword occurrence and if found, colorizing the keyword.
+		/// </summary>
 		protected void ShowSentences(string keyword)
 		{
 			rtbSentences.Clear();
@@ -362,7 +427,7 @@ namespace NlpVisualizer
 			pageSentences.ForEachWithIndex((sentence, sidx) =>
 			{
 				string s = sentence.ToLower();
-				int idx = s.IndexOf(keyword);
+				int idx = s.IndexOf(keyword.ToLower());
 				bool found = idx >= 0;
 				int start = 0;
 
@@ -382,7 +447,7 @@ namespace NlpVisualizer
 					// Get remainder.
 					s = s.Substring(idx + keyword.Length);
 					start += idx + keyword.Length;		// for master sentence.
-					idx = s.IndexOf(keyword);
+					idx = s.IndexOf(keyword.ToLower());
 				}
 
 				if (found)
@@ -415,10 +480,7 @@ namespace NlpVisualizer
 
 			displayedSentenceIndices.ForEach(dsi =>
 			{
-				if (dsi > 0)
-				{
-					ret.AddRange(GetKeywordsInSentence(dsi));
-				}
+				ret.AddRange(GetKeywordsInSentence(dsi));
 			});
 
 			return ret;
@@ -584,75 +646,58 @@ namespace NlpVisualizer
 
 			string ctrSentence =  FirstThreeWords(pageSentences[displayedSentenceIndices[0]]);
 			Node node = new TextNode(surface, ctrSentence);
+			((TextNode)node).Brush = surface.greenBrush;
 			mDiagram.AddNode(node);
 
 			// Get the keywords of all sentences for the current sentence or sentences containing the selected keyword.
 			List<SentenceInfo> keywords = GetSentencesKeywords();
-			keywords = keywords.RemoveDuplicates((si1, si2) => si1.Keyword == si2.Keyword).ToList();
-			parsedKeywords.AddRange(keywords.Select(si => si.Keyword));
+			keywords = keywords.RemoveDuplicates((si1, si2) => si1.Keyword.ToLower() == si2.Keyword.ToLower()).ToList();
+			parsedKeywords.AddRange(keywords.Select(si => si.Keyword.ToLower()));
 			AddKeywordsToGraphNode(node, keywords, 0);
+			mDiagram.Arrange();
 		}
 
 		protected void AddKeywordsToGraphNode(Node node, List<SentenceInfo> keywords, int depth)
 		{
-			if (depth < 3)
+			if (depth < FDG_DEPTH_LIMIT)
 			{
 				int idx = 0;
 
-				keywords.ForEach(si =>
+				foreach(SentenceInfo si in keywords)
 				{
-					++idx;
-
 					// Limit # of keywords we display.
-					if (idx <= 5)
+					if (idx++ < FDG_NODE_KEYWORD_LIMIT)
 					{
 						Node child = new TextNode(surface, si.Keyword);
 						node.AddChild(child);
 
 						// Get all sentences indices containing this keyword:
-						List<int> containingSentences = keywordSentenceMap[si.Keyword]; // new List<int>();
-						
-						/*
-						pageSentences.ForEachWithIndex((sentence, sidx) =>
-						{
-							string s = sentence.ToLower();
-
-							if (s.IndexOf(si.Keyword) >= 0)
-							{
-								containingSentences.Add(sidx);
-							}
-						});
-						*/
+						List<int> containingSentences = keywordSentenceMap[si.Keyword];
 
 						// Now get the related keywords for each of those sentences.  
 						List<SentenceInfo> relatedKeywords = new List<SentenceInfo>();
 
 						containingSentences.ForEach(cs =>
 							{
-								List<SentenceInfo> si3 = GetKeywordsInSentence(cs);
-
-								si3.ForEach(si4 =>
-									{
-										// This will also remove duplicates.
-										if (!parsedKeywords.Contains(si4.Keyword.ToLower()))
-										{
-											relatedKeywords.Add(si4);
-											// Avoid further duplicates.
-											parsedKeywords.Add(si4.Keyword);
-										}
-									});
+								// Get the unique and previously not processed keywords in the sentence.
+								List<SentenceInfo> si3 = GetKeywordsInSentence(cs).Where(sik => !parsedKeywords.Contains(sik.Keyword.ToLower())).ToList();
+								// TODO: sort by relevance
+								si3 = si3.RemoveDuplicates((si1, si2) => si1.Keyword.ToLower() == si2.Keyword.ToLower()).ToList();
+								relatedKeywords.AddRange(si3);
+								parsedKeywords.AddRange(si3.Select(sik=>sik.Keyword.ToLower()));
 							});
 
 						if (relatedKeywords.Count > 0)
 						{
-							// Remove related keywords in sentences we've already processed.
 							AddKeywordsToGraphNode(child, relatedKeywords, depth + 1);
 						}
 					}
-				});
+					else
+					{
+						break;
+					}
+				}
 			}
-
-			mDiagram.Arrange();
 		}
 
 		protected string FirstThreeWords(string s)

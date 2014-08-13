@@ -1,0 +1,524 @@
+<html>
+
+<head>
+<meta http-equiv="Content-Language" content="en-us">
+<meta http-equiv="Content-Type" content="text/html; charset=windows-1252">
+<title>Introduction</title>
+</head>
+
+<body>
+
+<p>Automating Semantic Mapping of a Document With Natural Language Processing</p>
+<p><img border="0" src="screenshot.png" width="966" height="651"></p>
+<h2>Source Code and Running the Program</h2>
+<p>The source code for this article is hosted on GitHub:
+<a href="https://github.com/cliftonm/nlpvisualizer">
+https://github.com/cliftonm/nlpvisualizer</a></p>
+<p>To run the program, you will need to obtain an API key on
+<a href="http://www.alchemyapi.com/api/register.html">AlchemyAPI's registration 
+page</a>.&nbsp; The free account permits you to perform 1000 queries per day.&nbsp; 
+You can put the key directly into the source code or, as I have done, create the 
+file &quot;alchemyapikey.txt&quot; in the bin\debug folder and copy your key into the 
+first line of that file.</p>
+<h2>Using the Program</h2>
+<h3>Basic Operation</h3>
+<ol>
+	<li>Enter a URL in the URL textbox and click Process.</li>
+	<li>Once the keywords are displayed, you can click on the keyword list to 
+	display sentences containing that keyword and update the selected visualizer 
+	for that keyword.</li>
+	<li>If there are multiple sentences, double-click on a sentence in the 
+	RichTextBox to narrow the scope of the visualization down to that one 
+	sentence</li>
+	<li>Navigate previous and next sentences with the &quot;Prev. Sentence&quot; and &quot;Next 
+	Sentence&quot; buttons.</li>
+</ol>
+<h3>Visualization</h3>
+<ol>
+	<li>Right-click and drag to move the entire visualization surface</li>
+<li>Use the mouse wheel to zoom in and out (this is a bit problematic because of 
+the ridiculous way the mouse wheel event works in relation to what control in 
+the form has focus.) This feature is only available in the Keyword Directed 
+Graph visualization.&nbsp; Alternatively (and if you don't have a mouse wheel) left-click and drag 
+	up/right or down/left to zoom in/out.</li>
+<li>In the &quot;Neighboring Sentence Keywords&quot; visualization, double-click on a 
+keyword to select that keyword to navigate to in the text and visualization.</li>
+	<li>In the &quot;Keyword Directed Graph&quot; visualization, double-click on a node 
+	(blue circle) to select that keyword&nbsp; to navigate to in the text and visualization.</li>
+</ol>
+<h2>Introduction</h2>
+<p>Natural Language Processing (NLP) intends to enable computers to derive 
+meaning from human or natural language input.&nbsp; In 
+<a href="http://www.codeproject.com/Articles/801577/A-Review-of-Three-Natural-Language-Processors-Alch">
+my articlee</a> reviewing three NLP's, we saw that these services extract 
+entities, keywords, topics, events, themes and concepts.&nbsp; Other than themes 
+and concepts, the results are essentially keywords or phrases.&nbsp; The 
+extracted &quot;strings&quot; often have an associated relevance or strength, count or 
+frequency, and/or sentiment value.&nbsp; I used the features of one NLP 
+provider, <a href="http://www.alchemyapi.com/developers/sdks/">AlchemyAPI</a>, 
+in
+<a href="http://www.codeproject.com/Articles/797457/The-Semantic-Web-and-Natural-Language-Processing">
+another article</a> to provide some filtering capabilities of RSS feeds, 
+enabling the user to create filters based on the extracted strings and 
+additional values.</p>
+<h3>Meaning in Concepts</h3>
+<p>Still, I found myself rather dissatisfied with the results.&nbsp; My first 
+issue is with concept extraction.&nbsp; When analyzing a short publication on <u>
+The Threefold Social Order and Education Reform </u><sup>1</sup>, AlchemyAPI&quot;s 
+&quot;concept&quot; extraction is very high level:</p>
+<ul>
+	<li>sociology</li>
+	<li>education</li>
+	<li>soul</li>
+	<li>meaning of life</li>
+	<li>religion</li>
+	<li>human</li>
+	<li>school</li>
+	<li>life</li>
+</ul>
+<p>As is Semantria's &quot;themes&quot;:</p>
+<ul>
+	<li>economic organization</li>
+	<li>social organism</li>
+	<li>human nature</li>
+	<li>economic system</li>
+	<li>bourgeois world view</li>
+</ul>
+<p>However, given this sentence in the document:</p>
+<p><i>&quot;Rather, the spiritual-cultural organ of the social organism should, 
+following the dictates of its own independent administration, bring those who 
+are suitably gifted to a certain level of cultivation, and the state and 
+economic life should organize themselves in accordance with the results of work 
+in the spiritual-cultural sphere.&quot;</i><sup> </sup></p>
+<p>None of the NLP's that I reviewed earlier determine that this sentence is 
+dealing with the concept of &quot;Meritocracy.<sup>&quot;2</sup>&nbsp; </p>
+<h3>Meaning in Relationships</h3>
+<p>My second concern is that meaning is closely related to relationships between 
+keywords or concepts.&nbsp; This article discusses two approaches for extracting 
+relational meaning from keywords within a single document, creating a kind of 
+semantic mind map or concept map.&nbsp; The two 
+approaches use two different kinds of visualizations -- one is a simple 
+&quot;keywords in adjacent sentences&quot; visualization, and the other is a force 
+directed graph<sup>3</sup> (FDG) of the relationships between keywords in the 
+sentences in which the selected and related keywords occur.&nbsp; How to read 
+the GDF will be explained in more detail later.&nbsp; The FDG code was 
+originally written and posted by Bradley Smith in his July 2, 2010 blog entry<sup>4</sup> 
+-- I have made some minor modifications to that code to improve processing and 
+to render text nodes.</p>
+<h2>Visualizations</h2>
+<p>There are two visualizations: adjacent sentence keywords and keyword 
+associations.&nbsp; For these examples, I am using the wikipedia page on 
+Founding Fathers of the United States<sup>5</sup>.</p>
+<h3>Adjacent Sentence Keyword Visualization</h3>
+<p>In the sentence containing the keyword &quot;national affairs&quot;:</p>
+<p><img border="0" src="rtb2.png" width="416" height="42"></p>
+<p>The previous sentence contains the keyword &quot;well-educated men&quot; and the next 
+sentence contains the keywords &quot;American Revolution&quot; and &quot;Continental Army&quot;:</p>
+<p><img border="0" src="v1.png" width="517" height="81"></p>
+<p>This visualization is actually of interesting use.&nbsp; While it should not 
+be interpreted as having any causal relationship, it can be interpreted as 
+having a concept relationship.&nbsp; In the above keyword relationships, for 
+example, the three sentences together are:</p>
+<ol>
+	<li>Almost all of them were well-educated men of means who were leaders in 
+	their communities.</li>
+	<li>Many were also prominent in national affairs.</li>
+	<li>Virtually every one had taken part in the American Revolution; at least 
+	29 had served in the Continental Army, most of them in positions of command.</li>
+</ol>
+<p>One can quickly determine that the concept here is that &quot;these men (in this 
+case, delegates of the Federal Convention in Philadephia, determined by 
+inspecting prior sentences) were well educated, prominent in national affairs, 
+and almost all had taken part in the American Revolution or served in the 
+Continental Army and most were in positions of command.&quot;&nbsp; When working with 
+a complex document, keyword adjacency allows you to quickly create a concept 
+from the surrounding text, which may have been missed in the overall complexity of the text.</p>
+<p>Also note that double-clicking on a keyword in the visualization shows all 
+the sentences containing that keyword as well as updating the visualization.&nbsp; 
+For example, when double-clicking on &quot;well-educated men&quot;, the program reveals:</p>
+<p><img border="0" src="v5.png" width="640" height="378"></p>
+<h3>Keyword Directed Graph</h3>
+<p>The second visualization is a directed graph of keyword associations.&nbsp; 
+To explain this, let's start with something basic using the sentence &quot;Many were 
+also prominent in national affairs&quot;:</p>
+<p><img border="0" src="v3.png" width="114" height="106"></p>
+<p>What this graph shows is that this sentence has only one keyword, which is 
+&quot;national affairs.&quot;&nbsp; Because this keyword does not appear in any other 
+sentences, there are no further links.</p>
+<p>Now let's look at this sentence, a little bit earlier in the text:</p>
+<p><i>&quot;As a sanctuary for Baptists, Rhode Island's absence at the Convention in 
+part explains the absence of Baptist affiliation among those who did attend.&quot;</i></p>
+<p>This sentence can also be found by clicking on the keyword &quot;Baptist 
+affiliation.&quot;</p>
+<p><img border="0" src="v4.png" width="438" height="410"></p>
+<p>Here we have a more complex graph.&nbsp; Starting with the sentence &quot;As a 
+sanctuary...&quot; we see that it has two keywords:</p>
+<ol>
+	<li>Baptist affiliation</li>
+	<li>Rhode Island</li>
+</ol>
+<p>&quot;Baptist affiliation&quot; is not contained in any other sentences and therefore 
+does not have any child nodes.&nbsp; However, &quot;Rhode Island&quot; is contained in one 
+or more sentences, having two other keywords:</p>
+<ol>
+	<li>delegates</li>
+	<li>Convention delegates</li>
+</ol>
+<p>The keyword &quot;delegates&quot; is used in one or more sentences containing keywords:</p>
+<ol>
+	<li>United States Declaration</li>
+	<li>Constitutional Convention</li>
+	<li>large group</li>
+	<li>Founding Fathers</li>
+	<li>United States</li>
+</ol>
+<p>These graphs can become complex, as illustrated by the starting text:</p>
+<p>&quot;<i>The Founding Fathers of the United States of America were political 
+leaders and statesmen who participated in the American Revolution by signing the 
+United States Declaration of Independence, taking part in the American 
+Revolutionary War, and establishing the United States Constitution.</i>&quot;</p>
+<p><img border="0" src="v6.png" width="844" height="496"></p>
+<p>There are two constants, not exposed at the moment in the UI, that limit the 
+depth and breadth of the directed graph:</p>
+<pre>const int FDG_DEPTH_LIMIT = 3;
+const int FDG_NODE_KEYWORD_LIMIT = 5;</pre>
+<p>The keyword association directed graph is a very interesting way of mapping 
+out the relationship between concepts that occur within sentences.&nbsp; One can 
+quickly discover additional paths for investigating concepts based on how 
+keywords are associated with each other, which I've found helps to build a 
+broader picture of what the text is discussing.&nbsp; So, for example, while 
+adjacent keywords usually stay within a closely knit thought process,&nbsp; the 
+keyword association graph allows one to explore more loosely coupled concepts 
+around the central theme.</p>
+<p>Double-clicking on a keyword's node (the blue circle) in the visualization 
+shows all the sentences containing that keyword as well as updating the 
+visualization.</p>
+<h3>Relevance Weighting</h3>
+<p><img border="0" src="v2.png" width="540" height="337"></p>
+<p>Keyword font size reflects the relevance (as determined by AlchemyAPI) of the 
+keyword.&nbsp; So, for example, because the keyword &quot;United States&quot; has the 
+highest relevance (0.92971), it is displayed in a large font.&nbsp; The 
+relevance scale is from 0 to 1 and adjusts the font by multiplying the relevance 
+(minus the minimum relevance) by 16 and adding that value to the base 
+font size of 8:</p>
+<pre>font = new Font(
+  FontFamily.GenericSansSerif, 
+  (float)(8.0 + (Program.app.keywordRelevanceMap[keyword] - Program.app.minRelevance) * FONT_WEIGHT_MULTIPLIER));</pre>
+<h2>The Code</h2>
+<p>While there's nothing complex about the code, I'll discuss the basic 
+processes here.</p>
+<h3>Document Analysis</h3>
+<p>The program analyzes web pages (as opposed to document text that you input 
+yourself) from the URL that you enter on the main form.&nbsp; You may discover 
+that you will get a &quot;content exceeded&quot; error message for some pages, as there is 
+a size limit to content that AlchemyAPI processes.</p>
+<p>The processing has three parts:</p>
+<ol>
+	<li>Obtaining the scraped content using AlchemyAPI's <code>URLGetText</code> method.</li>
+<li>Obtaining the keywords from that content using AlchemyAPI's <code>TextGetRankedKeywords</code> method.</li>
+	<li>Performing a keyword-sentence relationship lookup map pre-process.</li>
+</ol>
+<pre>/// &lt;summary&gt;
+/// Analyze the document, extracting the text the keywords, and create the keyword-sentence maps.
+/// &lt;/summary&gt;
+protected async void Process(object sender, EventArgs args)
+{
+  btnProcess.Enabled = false;
+  ClearAllGrids();
+  string url = tbUrl.Text;
+  sbStatus.Text = &quot;Acquiring page content...&quot;;
+  try
+  {
+    pageText = await Task.Run(() =&gt; GetUrlText(url));
+    pageSentences = ParseOutSentences(pageText);
+
+    sbStatus.Text = &quot;Acquiring keywords from AlchemyAPI...&quot;;
+    dsKeywords = GetKeywords(url, pageText);
+
+    sbStatus.Text = &quot;Processing results...&quot;;
+    dvKeywords = new DataView(dsKeywords.Tables[&quot;keyword&quot;]);
+    CreateSortedKeywordList(dvKeywords);
+    CreateSentenceKeywordMaps(dvKeywords);
+    CreateKeywordRelevanceMap(dvKeywords); // Must be done before assigning the data source.
+    sbStatus.Text = &quot;Ready&quot;;
+    dgvKeywords.DataSource = dvKeywords;
+    lblAlchemyKeywords.Text = String.Format(&quot;Keywords: {0}&quot;, dvKeywords.Count);
+    btnProcess.Enabled = true;
+  }
+  catch (Exception ex)
+  {
+    MessageBox.Show(ex.Message, &quot;Processing Error&quot;, MessageBoxButtons.OK);
+  }
+  finally
+  {
+    sbStatus.Text = &quot;Ready&quot;;
+    btnProcess.Enabled = true;
+  }
+}
+</pre>
+<p>Several &quot;mappings&quot; are created between keywords, sentence indices, and 
+relevance values to facilitate visualization of selected keywords:</p>
+<pre>/// &lt;summary&gt;
+/// Create the sentence-keyword map (list of keywords in each sentence.)
+/// Create the keyword-sentence map (list of sentence indices for each keyword.)
+/// &lt;/summary&gt;
+/// &lt;param name=&quot;dvKeywords&quot;&gt;&lt;/param&gt;
+protected void CreateSentenceKeywordMaps(DataView dvKeywords)
+{
+  sentenceKeywordMap.Clear();
+  keywordSentenceMap.Clear();
+
+  // For each sentence, get all the keywords in that sentence.
+  pageSentences.ForEachWithIndex((s, idx) =&gt;
+  {
+    List&lt;string&gt; keywordsInSentence = new List&lt;string&gt;();
+    sentenceKeywordMap[idx] = keywordsInSentence;
+    string sl = s.ToLower();
+
+    // For each of the returned keywords in the view...
+    dvKeywords.ForEach(row =&gt;
+    {
+      string keyword = row[0].ToString();
+
+      if (sl.Contains(keyword.ToLower()))
+      {
+        // Add keyword to sentence-keyword map.
+        keywordsInSentence.Add(keyword);
+
+        // Add sentence to keyword-sentence map.
+        List&lt;int&gt; sentences;
+        
+        if (!keywordSentenceMap.TryGetValue(keyword, out sentences))
+        {
+          // No entry for this keyword yet, so create the sentence indices list.
+          sentences = new List&lt;int&gt;();
+          keywordSentenceMap[keyword] = sentences;
+        }
+
+      sentences.AddIfUnique(idx);
+      }
+    });
+  });
+}</pre>
+<h3>RichTextBox Display</h3>
+<p><img border="0" src="rtb1.png" width="995" height="285"></p>
+<p>When a keyword is selected, the sentences containing that keyword are 
+displayed with that keyword highlighted.</p>
+<pre>/// &lt;summary&gt;
+/// When a keyword is selected from the grid or the visualizator, we update RTB
+/// to display the sentences containing the keyword and also the keyword relationship visualization.
+/// &lt;/summary&gt;
+public void ShowKeywordSelection(string keyword)
+{
+  textboxEventsEnabled = false;
+  ShowSentences(keyword);
+  textboxEventsEnabled = true;
+  rtbSentences.SelectionStart = 0;
+  surface.NewKeyword(keyword);
+  UpdateKeywordVisualization();
+}</pre>
+<p>This is accomplished by parsing the sentence for the selected keyword and 
+building the text in the RichTextBox as each keyword occurrence is encountered:</p>
+<pre>/// &lt;summary&gt;
+/// Build the text, checking for keyword occurrence and if found, colorizing the keyword.
+/// &lt;/summary&gt;
+protected void ShowSentences(string keyword)
+{
+  rtbSentences.Clear();
+  displayedSentenceIndices.Clear();
+
+  pageSentences.ForEachWithIndex((sentence, sidx) =&gt;
+  {
+    string s = sentence.ToLower();
+    int idx = s.IndexOf(keyword.ToLower());
+    bool found = idx &gt;= 0;
+    int start = 0;
+
+    while (idx &gt;= 0)
+    {
+      // Remember the index of this sentence, but we don't want duplicates.
+      if (!displayedSentenceIndices.Contains(sidx))
+      {
+        displayedSentenceIndices.Add(sidx);
+      }
+
+      // Use master sentence to preserve casing.
+      string substr = sentence.Substring(start, idx);
+      rtbSentences.AppendText(substr);
+      rtbSentences.AppendText(keyword, Color.Red);
+
+      // Get remainder.
+      s = s.Substring(idx + keyword.Length);
+      start += idx + keyword.Length; // for master sentence.
+      idx = s.IndexOf(keyword.ToLower());
+    }
+
+    if (found)
+    {
+      // Append the remainder.
+      rtbSentences.AppendText(s);
+      rtbSentences.AppendText(&quot;\n\n&quot;);
+    }
+  });
+}</pre>
+<h3>Adjacent Sentence Keyword Visualization</h3>
+<p><img border="0" src="v1.png" width="517" height="81"></p>
+<p>The code for generating the visualization of adjacent sentence keyword 
+visualization first draws the previous keywords, then the next keywords, and 
+then the current keyword, so that the present keyword appears above the 
+connecting lines:</p>
+<pre>protected void DrawNeighboringSentenceKeywords(Graphics gr)
+{
+  try
+  {
+    // Get location of keyword in the center of the
+    Point ctr = new Point(Size.Width / 2, Size.Height / 2);
+
+    keywordLocationMap.Clear();
+    DrawPreviousKeywords(gr, ctr);
+    DrawNextKeywords(gr, ctr);
+    DrawKeyword(gr, keyword); // Last, so that text appears above lines.
+  }
+  catch (Exception ex)
+  {
+    System.Diagnostics.Debug.WriteLine(ex.Message);
+  }
+}</pre>
+<p>The previous and next keywords are predetermined when the user clicks on a 
+keyword in the keyword list or filters the sentences containing that keyword to 
+a single sentence:</p>
+<pre>protected void UpdateKeywordVisualization()
+{
+  List&lt;SentenceInfo&gt; prevKeywords = GetPreviousSentencesKeywords();
+  List&lt;SentenceInfo&gt; nextKeywords = GetNextSentencesKeywords();
+  surface.PreviousKeywords(prevKeywords);
+  surface.NextKeywords(nextKeywords);
+
+  if (directedGraph)
+  {
+    UpdateDirectedGraph();
+  }
+
+  surface.Invalidate(true);
+}</pre>
+<p>Ultimately, given the sentence index, this is a simple lookup and processing 
+into the a list of <code>SentenceInfo</code> instances.</p>
+<pre>protected List&lt;SentenceInfo&gt; GetKeywordsInSentence(int idx)
+{
+  List&lt;SentenceInfo&gt; ret = new List&lt;SentenceInfo&gt;();
+  sentenceKeywordMap[idx].ForEach(k =&gt; ret.Add(new SentenceInfo() 
+      { Keyword = k, Index = idx, Relevance = keywordRelevanceMap[k] }));
+
+  return ret;
+}
+</pre>
+<p>If the selected keyword does not appear in the current sentence, the 
+visualization will render the center with empty brackets &quot;[ ]&quot;:</p>
+<p><img border="0" src="v8.png" width="552" height="279"></p>
+<h3>Keyword Directed Graph</h3>
+<p><img border="0" src="v9.png" width="714" height="410"></p>
+<p>As discussed earlier, this is a recursive search of keyword as determined by 
+their associative occurrences in sentences.&nbsp; The algorithm is limited in 
+depth and breadth by two constants:</p>
+<pre>const int FDG_DEPTH_LIMIT = 3;
+const int FDG_NODE_KEYWORD_LIMIT = 5;</pre>
+<p>Also, duplicate keywords are omitted during the traversal.&nbsp; The 
+algorithm begins with keywords in the current sentence and recurses, for each 
+keyword, to other sentences containing that keyword.&nbsp; In those sentences, 
+the associated keywords determine the next level of recursion:</p>
+<pre>protected void UpdateDirectedGraph()
+{
+  mDiagram.Clear();
+  parsedKeywords.Clear();
+
+  string ctrSentence = FirstThreeWords(pageSentences[displayedSentenceIndices[0]]);
+  Node node = new TextNode(surface, ctrSentence);
+  ((TextNode)node).Brush = surface.greenBrush;
+  mDiagram.AddNode(node);
+
+  // Get the keywords of all sentences for the current sentence or sentences containing the selected keyword.
+  List&lt;SentenceInfo&gt; keywords = GetSentencesKeywords();
+  keywords = keywords.RemoveDuplicates((si1, si2) =&gt; si1.Keyword.ToLower() == si2.Keyword.ToLower()).ToList();
+  parsedKeywords.AddRange(keywords.Select(si =&gt; si.Keyword.ToLower()));
+  AddKeywordsToGraphNode(node, keywords, 0);
+  mDiagram.Arrange();
+}
+
+protected void AddKeywordsToGraphNode(Node node, List&lt;SentenceInfo&gt; keywords, int depth)
+{
+  if (depth &lt; FDG_DEPTH_LIMIT)
+  {
+    int idx = 0;
+
+    foreach(SentenceInfo si in keywords)
+    {
+      // Limit # of keywords we display.
+      if (idx++ &lt; FDG_NODE_KEYWORD_LIMIT)
+      {
+        Node child = new TextNode(surface, si.Keyword);
+        node.AddChild(child);
+
+        // Get all sentences indices containing this keyword:
+        List&lt;int&gt; containingSentences = keywordSentenceMap[si.Keyword];
+
+        // Now get the related keywords for each of those sentences. 
+        List&lt;SentenceInfo&gt; relatedKeywords = new List&lt;SentenceInfo&gt;();
+
+        containingSentences.ForEach(cs =&gt;
+        {
+          // Get the unique and previously not processed keywords in the sentence.
+          List&lt;SentenceInfo&gt; si3 = GetKeywordsInSentence(cs).Where(sik =&gt; !parsedKeywords.Contains(sik.Keyword.ToLower())).ToList();
+          si3 = si3.RemoveDuplicates((si1, si2) =&gt; si1.Keyword.ToLower() == si2.Keyword.ToLower()).ToList();
+          relatedKeywords.AddRange(si3);
+          parsedKeywords.AddRange(si3.Select(sik=&gt;sik.Keyword.ToLower()));
+        });
+
+        if (relatedKeywords.Count &gt; 0)
+        {
+          AddKeywordsToGraphNode(child, relatedKeywords, depth + 1);
+        }
+      }
+      else
+      {
+        break;
+      }
+    }
+  }
+}</pre>
+<p>I refer you to Brad Smith's excellent blog<sup>4</sup> on force directed 
+graphs for further reading on the algorithm that generates the graph.</p>
+<h2>Going Deeper</h2>
+<p>As a research tool, it is also useful to create relationships between 
+documents.&nbsp; This requires building a database of documents and extracted 
+keywords/concepts so that a program such as the one presented here can correlate 
+keywords/concepts between documents, enabling the user to investigate a concept 
+beyond the scope of one single document.&nbsp; I may at some point add this 
+capability!!</p>
+<h2>Conclusion</h2>
+<p>In actual practice, I find that this program is actually a very effective 
+tool for focusing on specific points in an article or blog.&nbsp; It is actually 
+quite useful in and of itself to navigate a document a sentence at a time 
+because it helps reduce the clutter of the entire document.&nbsp; The adjacent 
+sentence keyword visualization helps in exploring related keywords within the 
+same &quot;thought&quot;, facilitating the quick construction of a primary concept.&nbsp; 
+Using the keyword association directed graph, the primary concept can be 
+expanded to include other peripheral concepts.&nbsp; It is quite enjoyable and 
+instructive to work with a document in this way.</p>
+<h2>References</h2>
+<p>1. 
+<a href="http://wn.rsarchive.org/Books/GA024/English/AP1985/GA024_c04.html">
+http://wn.rsarchive.org/Books/GA024/English/AP1985/GA024_c04.htmll</a> </p>
+<p>2. <a href="http://en.wikipedia.org/wiki/Meritocracy">
+http://en.wikipedia.org/wiki/Meritocracy< </p>
+<p>3. <a href="http://en.wikipedia.org/wiki/Force-directed_graph_drawing">
+http://en.wikipedia.org/wiki/Force-directed_graph_drawing</a> </p>
+<p>4. <a href="http://www.brad-smith.info/blog/archives/129">
+http://www.brad-smith.info/blog/archives/129</a> </p>
+
+<p>5.
+<a href="http://en.wikipedia.org/wiki/Founding_Fathers_of_the_United_States">
+http://en.wikipedia.org/wiki/Founding_Fathers_of_the_United_States</a> </p>
+
+</body>
+
+</html>
