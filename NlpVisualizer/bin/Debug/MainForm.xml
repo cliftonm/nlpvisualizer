@@ -1,0 +1,60 @@
+<?xml version="1.0" encoding="utf-8" ?>
+<MycroXaml Name="Form"
+  xmlns:wf="System.Windows.Forms, System.Windows.Forms, Version=1.0.5000.0, Culture=neutral, PublicKeyToken=b77a5c561934e089"
+  xmlns:nlp="NlpVisualizer, NlpVisualizer"
+  xmlns:def="def"
+  xmlns:ref="ref">
+  <wf:Form def:Name="form" Text="NLP Visualizer" Size="1024, 768" StartPosition="CenterScreen">
+    <wf:Controls>
+      <wf:Label Text="URL:" Location="10, 12" Size="45, 15"/>
+      <wf:TextBox def:Name="tbUrl" Location="55, 10" Size="300, 20" Text="http://wn.rsarchive.org/Books/GA024/English/AP1985/GA024_c04.html"/>
+      <wf:Button def:Name="btnProcess" Text="Process" Location="360, 7" Size="80, 25" Click="Process"/>
+      
+      <wf:Label def:Name="lblAlchemyKeywords" Text="Keywords:" Location="10, 40" Size="100, 15"/>
+      <wf:DataGridView def:Name="dgvKeywords"
+              Location="10, 55" Size="300, 620"
+              Anchor="Left, Top, Bottom"
+              AllowUserToAddRows="false"
+              AllowUserToDeleteRows="false"
+              ReadOnly="true"
+              SelectionMode="FullRowSelect"
+              RowHeadersVisible="False"
+              SelectionChanged="OnKeywordSelection"/>
+
+        <wf:Label def:Name="lblSentenceInfo" Text="Sentences containing selected keyword phrase:" Location="320, 40" Size="300, 15"/>
+        <wf:RichTextBox def:Name="rtbSentences"
+                        Location="320, 55"
+                        Size="670, 200"
+                        Anchor="Top, Left, Right"
+                        Font="Courier New, 11"
+                        SelectionChanged="OnCursorMoved"
+                        DoubleClick="OnSelectSentence"/>
+      <wf:Button def:Name="btnPrevSentence" Location="320, 260" Text="Prev. Sentence" Size="120, 25" Click="OnPreviousSentence"/>
+      <wf:Button def:Name="btnNextSentence" Location="445, 260" Text="Next Sentence" Size="120, 25" Click="OnNextSentence"/>
+
+      <wf:RadioButton def:Name="rbNeighboringSentenceKeywords" Text="Neighboring Sentence Keywords" Location="320, 300" Size="200, 20" Checked="true" CheckedChanged="GraphModeChanged"/>
+      <wf:RadioButton def:Name="rbKeywordDirectedGraph" Text="Keyword Directed Graph" Location="550, 300" Size="150, 20" CheckedChanged="GraphModeChanged"/>
+
+      <nlp:Surface def:Name="surface" Location="320, 320" Size="670, 375" Anchor="Left, Top, Bottom, Right">
+        <nlp:Controls>
+          <nlp:VisualizerControl def:Name="ctrlsurface" Dock="Fill"
+                       Paint="{surface.OnVisualizerPaint}" 
+                       MouseDown="{surface.MouseDownEvent}"
+                       MouseUp="{surface.MouseUpEvent}" 
+                       MouseMove="{surface.MouseMoveEvent}"
+                       MouseDoubleClick="{surface.MouseDoubleClickEvent}"
+                       MouseWheel="{surface.MouseWheelEvent}"/>
+        </nlp:Controls>
+      </nlp:Surface>
+
+      <wf:StatusBar ShowPanels="true">
+        <wf:Panels>
+          <wf:StatusBarPanel def:Name="sbStatus" BorderStyle="Sunken" AutoSize="Spring"/>
+        </wf:Panels>
+      </wf:StatusBar>
+    </wf:Controls>
+
+    <nlp:Surface ref:Name="surface" MouseWheel="{surface.MouseWheelEvent}"/>
+    <wf:Form ref:Name="form" MouseWheel="{surface.MouseWheelEvent}"/>
+  </wf:Form>
+</MycroXaml>
