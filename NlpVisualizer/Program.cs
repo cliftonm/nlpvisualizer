@@ -64,7 +64,18 @@ namespace NlpVisualizer
 		protected bool textboxEventsEnabled;
 		protected string keyword;
 
+		// Maps the relevance of each keyword.
 		public Dictionary<string, double> keywordRelevanceMap;
+
+		// Keywords, sorted by relevance.
+		public SortedList<double, string> keywordByRelevanceList;
+
+		// Keywords in each sentence, by index.
+		public Dictionary<int, List<string>> sentenceKeywordMap;
+
+		// Sentence indices for each keyword occurrance.
+		public Dictionary<string, List<int>> keywordSentenceMap;
+
 		public double minRelevance;
 		public double maxRelevance;
 		public bool directedGraph;
@@ -77,6 +88,9 @@ namespace NlpVisualizer
 			app = this;
 			displayedSentenceIndices = new List<int>();
 			keywordRelevanceMap = new Dictionary<string, double>();
+			sentenceKeywordMap = new Dictionary<int, List<string>>();
+			keywordSentenceMap = new Dictionary<string, List<int>>();
+			keywordByRelevanceList = new SortedList<double, string>();
 			mDiagram = new Diagram();
 		}
 
@@ -167,15 +181,65 @@ namespace NlpVisualizer
 			pageSentences = ParseOutSentences(pageText);
 			sbStatus.Text = "Acquiring keywords from AlchemyAPI...";
 			dsKeywords = GetKeywords(url, pageText);
-			sbStatus.Text = "Ready";
+			sbStatus.Text = "Processing results...";
 			dvKeywords = new DataView(dsKeywords.Tables["keyword"]);
-			CreateKeywordRelevanceMap();		// Must be done before assigning the data source.
+			CreateSortedKeywordList(dvKeywords);
+			CreateSentenceKeywordMaps(dvKeywords);
+			CreateKeywordRelevanceMap(dvKeywords);		// Must be done before assigning the data source.
+			sbStatus.Text = "Ready";
 			dgvKeywords.DataSource = dvKeywords;
 			lblAlchemyKeywords.Text = String.Format("Keywords: {0}", dvKeywords.Count);
 			btnProcess.Enabled = true;
 		}
 
-		protected void CreateKeywordRelevanceMap()
+		protected void CreateSortedKeywordList(DataView dvKeywords)
+		{
+			keywordByRelevanceList.Clear();
+
+			dvKeywords.ForEach(row =>
+				{
+					double relevance = Convert.ToDouble(row[1].ToString());
+					keywordByRelevanceList[relevance] = row[0].ToString();
+				});
+		}
+
+		protected void CreateSentenceKeywordMaps(DataView dvKeywords)
+		{
+			sentenceKeywordMap.Clear();
+			keywordSentenceMap.Clear();
+
+			// For each sentence, get all the keywords in that sentence.
+			pageSentences.ForEachWithIndex((s, idx) =>
+				{
+					List<string> keywordsInSentence = new List<string>();
+					sentenceKeywordMap[idx] = keywordsInSentence;
+					string sl = s.ToLower();
+
+					dvKeywords.ForEach(row =>
+						{
+							string keyword = row[0].ToString();
+
+							if (sl.Contains(keyword))
+							{
+								// Add keyword to sentence-keyword map.
+								keywordsInSentence.Add(keyword);
+
+								// Add sentence to keyword-sentence map.
+								List<int> sentences;
+
+								if (!keywordSentenceMap.TryGetValue(keyword, out sentences))
+								{
+									sentences = new List<int>();
+									keywordSentenceMap[keyword] = sentences;
+								}
+
+								sentences.AddIfUnique(idx);
+							}
+						});
+				});
+		}
+
+		protected void CreateKeywordRelevanceMap(DataView dvKeywords)
 		{
 			minRelevance = 1;
 			maxRelevance = 0;
@@ -378,18 +442,7 @@ namespace NlpVisualizer
 		protected List<SentenceInfo> GetKeywordsInSentence(int idx)
 		{
 			List<SentenceInfo> ret = new List<SentenceInfo>();
-			string sentence = pageSentences[idx].ToLower();
-
-			// TODO: Optimize this so it's a simple lookup after generating the keywords!
-			dvKeywords.ForEach(row =>
-				{
-					string keyword = row[0].ToString();
-
-					if (sentence.Contains(row[0].ToString()))
-					{
-						ret.Add(new SentenceInfo() { Keyword = keyword, Index = idx, Relevance = keywordRelevanceMap[keyword] });
-					}
-				});
+			sentenceKeywordMap[idx].ForEach(k => ret.Add(new SentenceInfo() { Keyword = k, Index = idx, Relevance = keywordRelevanceMap[k] }));
 
 			return ret;
 		}
@@ -557,8 +610,9 @@ namespace NlpVisualizer
 						node.AddChild(child);
 
 						// Get all sentences indices containing this keyword:
-						List<int> containingSentences = new List<int>();
-
+						List<int> containingSentences = keywordSentenceMap[si.Keyword]; // new List<int>();
+						
+						/*
 						pageSentences.ForEachWithIndex((sentence, sidx) =>
 						{
 							string s = sentence.ToLower();
@@ -568,6 +622,7 @@ namespace NlpVisualizer
 								containingSentences.Add(sidx);
 							}
 						});
+						*/
 
 						// Now get the related keywords for each of those sentences.  
 						List<SentenceInfo> relatedKeywords = new List<SentenceInfo>();
