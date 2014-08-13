@@ -130,7 +130,7 @@ namespace NlpVisualizer
 		public void ShowKeywordSelection(string keyword)
 		{
 			textboxEventsEnabled = false;
-			ShowSentences(keyword);
+			ShowSentences(keyword.ToLower());
 			textboxEventsEnabled = true;
 			rtbSentences.SelectionStart = 0;
 			surface.NewKeyword(keyword);
@@ -219,7 +219,7 @@ namespace NlpVisualizer
 						{
 							string keyword = row[0].ToString();
 
-							if (sl.Contains(keyword))
+							if (sl.Contains(keyword.ToLower()))
 							{
 								// Add keyword to sentence-keyword map.
 								keywordsInSentence.Add(keyword);
@@ -320,7 +320,7 @@ namespace NlpVisualizer
 			textboxEventsEnabled = true;
 			rtbSentences.SelectionStart = 0;
 
-			if (sentence.ToLower().Contains(keyword))
+			if (sentence.ToLower().Contains(keyword.ToLower()))
 			{
 				surface.NewKeyword(keyword);
 			}
@@ -634,7 +634,7 @@ namespace NlpVisualizer
 								si3.ForEach(si4 =>
 									{
 										// This will also remove duplicates.
-										if (!parsedKeywords.Contains(si4.Keyword))
+										if (!parsedKeywords.Contains(si4.Keyword.ToLower()))
 										{
 											relatedKeywords.Add(si4);
 											// Avoid further duplicates.
